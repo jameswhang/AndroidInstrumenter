@@ -41,7 +41,7 @@ public class AndroidInstrument {
                             InvokeExpr invokeExpr = stmt.getInvokeExpr();
                             if(invokeExpr.getMethod().getName().equals("setContentView")) {
                                 
-                                String viewID = invokeExpr.getArg(0).toString();
+                                String viewID = "[NUDEBUG] setContentView called with: " + invokeExpr.getArg(0).toString();
 
                                 Local tmpRef = addTmpRef(b);
                                 Local tmpString = addTmpString(b);
