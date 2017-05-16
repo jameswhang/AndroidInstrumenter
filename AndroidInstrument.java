@@ -3,6 +3,7 @@ import java.util.Map;
 
 import soot.*;
 import soot.jimple.*;
+import soot.jimple.toolkits.thread.mhp.SCC;
 import soot.options.Options;
 
 
@@ -278,6 +279,50 @@ public class AndroidInstrument {
                                     units.insertBefore(Jimple.v().newInvokeStmt(
                                             Jimple.v().newVirtualInvokeExpr(tmpRef, toCall.makeRef(), v)), u);
 
+                                    b.validate();
+                                }
+                            } else if (invokeExpr.getMethod().getName().equals("setText") || invokeExpr.getMethod().getName().equals("setTitle")) {
+                                if (invokeExpr.getMethod().getParameterCount() >= 1) {
+                                    Type t = invokeExpr.getMethod().getParameterType(0);
+                                    Value toPrint = null;
+                                    SootMethod toCall = Scene.v().getSootClass("java.io.PrintStream").getMethod("void println(int)");
+                                    if (t.getEscapedName().equals("int")) {
+                                        toPrint = invokeExpr.getArg(0);
+                                        toCall = Scene.v().getSootClass("java.io.PrintStream").getMethod("void println(int)");
+                                    } else if (t.getEscapedName().equals("java.lang.String")) {
+                                        toPrint = invokeExpr.getArg(0);
+                                        toCall = Scene.v().getSootClass("java.io.PrintStream").getMethod("void print(java.lang.String)");
+                                    } else if (t.getEscapedName().equals("java.lang.CharSequence")) {
+                                        toPrint = invokeExpr.getArg(0);
+                                        toCall = Scene.v().getSootClass("java.io.PrintStream").getMethod("void print(java.lang.String)");
+                                    }
+                                    Local tmpRef = addTmpRef(b);
+                                    Local tmpRef2 = addTmpRef(b);
+                                    Local tmpString = addTmpString(b);
+
+                                    Scene.v().addBasicClass("java.lang.System", SootClass.SIGNATURES);
+
+                                    String methodName = invokeExpr.getMethod().getName();
+
+                                    // insert "tmpRef = java.lang.System.out;"
+                                    units.insertBefore(Jimple.v().newAssignStmt(
+                                            tmpRef, Jimple.v().newStaticFieldRef(
+                                                    Scene.v().getField("<java.lang.System: java.io.PrintStream out>").makeRef())), u);
+
+                                    // insert "tmpLong = 'HELLO';"
+                                    units.insertBefore(Jimple.v().newAssignStmt(tmpString,
+                                            StringConstant.v("[NUDEBUG] " + methodName + " called with ID: ")), u);
+
+                                    // insert "tmpRef.println(tmpString);"
+                                    SootMethod print = Scene.v().getSootClass("java.io.PrintStream").getMethod("void print(java.lang.String)");
+
+                                    units.insertBefore(Jimple.v().newInvokeStmt(
+                                            Jimple.v().newVirtualInvokeExpr(tmpRef, print.makeRef(), tmpString)), u);
+
+                                    units.insertBefore(Jimple.v().newInvokeStmt(
+                                            Jimple.v().newVirtualInvokeExpr(tmpRef, toCall.makeRef(), toPrint)), u);
+
+                                    //check that we did not mess up the Jimple
                                     b.validate();
                                 }
                             }
