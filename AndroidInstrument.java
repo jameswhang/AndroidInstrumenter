@@ -1,8 +1,11 @@
+package soot;
+
 import java.util.Iterator;
 import java.util.Map;
 
 import soot.*;
 import soot.jimple.*;
+import soot.jimple.toolkits.ide.icfg.JimpleBasedInterproceduralCFG;
 import soot.jimple.toolkits.thread.mhp.SCC;
 import soot.options.Options;
 
@@ -39,6 +42,8 @@ public class AndroidInstrument {
 
             @Override
             protected void internalTransform(final Body b, String phaseName, @SuppressWarnings("rawtypes") Map options) {
+            	final JimpleBasedInterproceduralCFG icfg = new JimpleBasedInterproceduralCFG();
+
                 final PatchingChain<Unit> units = b.getUnits();
 
                 //important to use snapshotIterator here
@@ -47,6 +52,9 @@ public class AndroidInstrument {
                     u.apply(new AbstractStmtSwitch() {
 
                         public void caseAssignStmt(AssignStmt stmt) {
+
+                            String methodName = stmt.toString() + "@" + icfg.getMethodOf(stmt) + " ";
+                            System.out.println("TEST:::" + methodName);
                             if (stmt.containsInvokeExpr()) {
                                 InvokeExpr invokeExpr = stmt.getInvokeExpr();
 
@@ -56,6 +64,10 @@ public class AndroidInstrument {
                                     Local tmpString = addTmpString(b);
 
                                     Scene.v().addBasicClass("java.lang.System",SootClass.SIGNATURES);
+                                    
+                                    
+
+                                    methodName += invokeExpr.getMethod().getSignature();
 
                                     // insert "tmpRef = java.lang.System.out;"
                                     units.insertBefore(Jimple.v().newAssignStmt(
@@ -63,7 +75,7 @@ public class AndroidInstrument {
                                                     Scene.v().getField("<java.lang.System: java.io.PrintStream out>").makeRef())), u);
 
                                     units.insertBefore(Jimple.v().newAssignStmt(tmpString,
-                                            StringConstant.v("[NUDEBUG] findViewById called with ID: ")), u);
+                                            StringConstant.v("[NUDEBUG] " + methodName + " ARG: ")), u);
 
                                     // insert "tmpRef.println(tmpString);"
                                     SootMethod print = Scene.v().getSootClass("java.io.PrintStream").getMethod("void print(java.lang.String)");
@@ -83,10 +95,13 @@ public class AndroidInstrument {
 
 
                         public void caseInvokeStmt(InvokeStmt stmt) {
+                            String methodName = stmt.toString() + "@" + icfg.getMethodOf(stmt) + " ";
+
                             InvokeExpr invokeExpr = stmt.getInvokeExpr();
                             System.out.println(stmt.toString());
                             if(invokeExpr.getMethod().getName().contains("setContentView")) {
                                 if (invokeExpr.getArg(0).getType().toString().equals("int")) {
+                                    methodName += invokeExpr.getMethod().getSignature();
 
                                     Local tmpRef = addTmpRef(b);
                                     Local tmpRef2 = addTmpRef(b);
@@ -101,7 +116,7 @@ public class AndroidInstrument {
 
                                     // insert "tmpLong = 'HELLO';"
                                     units.insertBefore(Jimple.v().newAssignStmt(tmpString,
-                                            StringConstant.v("[NUDEBUG] setContentView called with ID: ")), u);
+                                            StringConstant.v("[NUDEBUG] " + methodName + " ARG: ")), u);
 
                                     // insert "tmpRef.println(tmpString);"
                                     //SootMethod toCall = Scene.v().getSootClass("java.io.PrintStream").getMethod("void println(java.lang.Integer)");
@@ -171,8 +186,8 @@ public class AndroidInstrument {
                                     */
                                 }
                             } else if (invokeExpr.toString().contains("java.net.URL") && invokeExpr.getMethod().toString().contains("init")) {
-                                System.out.println("[NUDEBUG] " + invokeExpr.toString());
                                 SootMethod m = invokeExpr.getMethod();
+                                methodName += invokeExpr.getMethod().getSignature();
                                 Value protocol = null;
                                 Value v = null;
 
@@ -205,7 +220,7 @@ public class AndroidInstrument {
 
                                 // insert "tmpLong = 'HELLO';"
                                 units.insertBefore(Jimple.v().newAssignStmt(tmpString,
-                                        StringConstant.v("[NUDEBUG] Found URL (java.net.URL) : ")), u);
+                                        StringConstant.v("[NUDEBUG] " + methodName + " URL: ")), u);
 
                                 // insert "tmpRef.println(tmpString);"
                                 SootMethod print = Scene.v().getSootClass("java.io.PrintStream").getMethod("void print(java.lang.String)");
@@ -221,6 +236,7 @@ public class AndroidInstrument {
 
                             } else if (invokeExpr.toString().contains("org.apache.http.client.methods.HttpPost") && invokeExpr.getMethod().toString().contains("init")) {
                                 if (invokeExpr.getMethod().getParameterType(0).getEscapedName().equals("java.lang.String")) {
+                                    methodName += invokeExpr.getMethod().getSignature();
                                     Value v = invokeExpr.getArg(0);
 
                                     Local tmpRef = addTmpRef(b);
@@ -236,7 +252,7 @@ public class AndroidInstrument {
 
                                     // insert "tmpLong = 'HELLO';"
                                     units.insertBefore(Jimple.v().newAssignStmt(tmpString,
-                                            StringConstant.v("[NUDEBUG] Found URL for HTTP POST : ")), u);
+                                        StringConstant.v("[NUDEBUG] " + methodName + " URL: ")), u);
 
                                     // insert "tmpRef.println(tmpString);"
                                     SootMethod print = Scene.v().getSootClass("java.io.PrintStream").getMethod("void print(java.lang.String)");
@@ -252,6 +268,7 @@ public class AndroidInstrument {
                                 }
                             } else if (invokeExpr.toString().contains("org.apache.http.client.methods.HttpGet") && invokeExpr.getMethod().toString().contains("init")) {
                                 if (invokeExpr.getMethod().getParameterType(0).getEscapedName().equals("java.lang.String")) {
+                                    methodName += invokeExpr.getMethod().getSignature();
                                     Value v = invokeExpr.getArg(0);
 
                                     Local tmpRef = addTmpRef(b);
@@ -267,7 +284,7 @@ public class AndroidInstrument {
 
                                     // insert "tmpLong = 'HELLO';"
                                     units.insertBefore(Jimple.v().newAssignStmt(tmpString,
-                                            StringConstant.v("[NUDEBUG] Found URL for HTTP GET: ")), u);
+                                            StringConstant.v("[NUDEBUG] " + methodName + " URL: ")), u);
 
                                     // insert "tmpRef.println(tmpString);"
                                     SootMethod print = Scene.v().getSootClass("java.io.PrintStream").getMethod("void print(java.lang.String)");
@@ -282,6 +299,7 @@ public class AndroidInstrument {
                                     b.validate();
                                 }
                             } else if (invokeExpr.getMethod().getName().equals("setText") || invokeExpr.getMethod().getName().equals("setTitle")) {
+                                methodName += invokeExpr.getMethod().getSignature();
                                 if (invokeExpr.getMethod().getParameterCount() >= 1) {
                                     Type t = invokeExpr.getMethod().getParameterType(0);
                                     Value toPrint = null;
@@ -302,8 +320,6 @@ public class AndroidInstrument {
 
                                     Scene.v().addBasicClass("java.lang.System", SootClass.SIGNATURES);
 
-                                    String methodName = invokeExpr.getMethod().getName();
-
                                     // insert "tmpRef = java.lang.System.out;"
                                     units.insertBefore(Jimple.v().newAssignStmt(
                                             tmpRef, Jimple.v().newStaticFieldRef(
@@ -311,7 +327,7 @@ public class AndroidInstrument {
 
                                     // insert "tmpLong = 'HELLO';"
                                     units.insertBefore(Jimple.v().newAssignStmt(tmpString,
-                                            StringConstant.v("[NUDEBUG] " + methodName + " called with ID: ")), u);
+                                            StringConstant.v("[NUDEBUG] " + methodName + " ARG: ")), u);
 
                                     // insert "tmpRef.println(tmpString);"
                                     SootMethod print = Scene.v().getSootClass("java.io.PrintStream").getMethod("void print(java.lang.String)");
